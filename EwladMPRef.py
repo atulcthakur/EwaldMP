@@ -39,6 +39,19 @@ class EwaldBlock(torch.nn.Module):
     """
 
     def __init__(
+        """
+        ACT: This method initializes the Ewlad Block with several parameters, including the shared downprojection, embedding size of the atoms, downprojection size, number of hidden layers, activation functions etc. 
+        It also sets up the necessary layers for the Ewald block, such as the downprojection (self.down), upprojection (self.up), pre-residual layer (self.pre_presidual), and the Ewald layers (self.ewald_layers).
+        
+        Q) Downprojection: In the context of NN, down and upprojection refer to the process of transforming data to a lower or higher dimensional space respectively. The self.down is used to transform the input data to
+        a lower dimensional space. This is often done to reduce the complexity of the models and catpture the most important features of the data. The self.down is a dense layer that transforms the input data to a lower-dimensional
+        space. The transformation is carried out through a matrix multiplication followed by an activation function. The matrix (or weights of the dense layer) is learned during the training process. The size of this matrix 
+        determines the dimensionality of the output, which is the downprojection_size in this case. 
+
+        Q) Upprojection: The self.up is another dense layer that transforms the lower-dimensional data back to its original high-dimensional space. Similar to the downprojection, the transformation is carried out 
+        through a matrix multiplication followed by an activation function. The size of this matrix determines the dimensionality of the output, which is the emb_size_atom in this case.
+
+        """        
         self,
         shared_downprojection: Dense,
         emb_size_atom: int,
