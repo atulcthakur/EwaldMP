@@ -51,6 +51,17 @@ class EwaldBlock(torch.nn.Module):
         Q) Upprojection: The self.up is another dense layer that transforms the lower-dimensional data back to its original high-dimensional space. Similar to the downprojection, the transformation is carried out 
         through a matrix multiplication followed by an activation function. The size of this matrix determines the dimensionality of the output, which is the emb_size_atom in this case.
 
+        Q) Pre-residual layer (self.pre_residual): This is an instance of the ResidualLayer class. Residual layers are a key component of Residual Networks (ResNets), which are a type of neural network architecture that 
+        introduces “skip connections” or “shortcuts” to allow the gradient to be directly backpropagated to earlier layers1. The pre-residual layer in this code is applied to the atomic embeddings before they are passed 
+        through the Ewald layers.
+        
+        Q) Ewald layers (self.ewald_layers): These are the layers that implement the Ewald message passing method. They are created in the get_mlp method and consist of a dense layer followed by several residual layers. 
+        The Ewald layers are applied to the atomic embeddings after they have been processed by the pre-residual layer and the Fourier space filter. The purpose of these layers is to update the atomic embeddings 
+        based on the long-range interactions captured by the Ewald message passing method.
+        
+        In the context of this code, both the pre-residual layer and the Ewald layers are used to update the atomic embeddings (h) during the forward pass of the Ewald block. 
+        The updated embeddings are then returned by the forward method
+
         """        
         self,
         shared_downprojection: Dense,
