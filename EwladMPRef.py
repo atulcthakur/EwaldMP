@@ -100,7 +100,9 @@ class EwaldBlock(torch.nn.Module):
     def get_mlp(self, units_in, units, num_hidden, activation):
     """
 
-    The step-by-step explaination of the method is as follows:
+    ACT: This method creates a multi-layer perceptron (MLP) with a specified number of input units, output units, and hidden layers. 
+    The MLP consists of a dense layer followed by several residual layers. 
+    The step-by-step explaination of the method is as follows.
 
     """
         dense1 = Dense(units_in, units, activation=activation, bias=False)                 # Dense Layer Creation (dense1): The method starts by creating a dense (fully connected) layer with units_in input units, 
