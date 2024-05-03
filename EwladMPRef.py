@@ -98,13 +98,24 @@ class EwaldBlock(torch.nn.Module):
             self.ewald_scale_sum = None
 
     def get_mlp(self, units_in, units, num_hidden, activation):
-        dense1 = Dense(units_in, units, activation=activation, bias=False)
-        mlp = [dense1]
+    """
+
+    The step-by-step explaination of the method is as follows:
+
+    """
+        dense1 = Dense(units_in, units, activation=activation, bias=False)                 # Dense Layer Creation (dense1): The method starts by creating a dense (fully connected) layer with units_in input units, 
+        units output units, and the specified activation function. The bias parameter is set to False, meaning that no bias term is added in this layer.
+        
+        mlp = [dense1] # MLP Initialization (mlp): The dense layer is added to the MLP, which is initialized as a list containing just this layer.
+        
         res = [
             ResidualLayer(units, nLayers=2, activation=activation)
             for i in range(num_hidden)
-        ]
+        ]   #                             Residual Layers Creation (res): A list of residual layers is created. The number of residual layers is specified by num_hidden. Each residual layer has units 
+        input and output units, 2 layers (nLayers=2), and uses the specified activation function.
+        
         mlp += res
+        
         return torch.nn.ModuleList(mlp)
 
     def forward(
