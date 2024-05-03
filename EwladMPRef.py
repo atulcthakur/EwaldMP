@@ -114,9 +114,11 @@ class EwaldBlock(torch.nn.Module):
         ]   #                             Residual Layers Creation (res): A list of residual layers is created. The number of residual layers is specified by num_hidden. Each residual layer has units 
         # input and output units, 2 layers (nLayers=2), and uses the specified activation function.
         
-        mlp += res
+        mlp += res # The residual layers are added to the MLP.
         
-        return torch.nn.ModuleList(mlp)
+        return torch.nn.ModuleList(mlp) # The MLP, now a list of layers (a dense layer followed by several residual layers), is converted to a torch.nn.ModuleList and returned. 
+        # The torch.nn.ModuleList is a container class in PyTorch that holds submodules in a list. 
+        # It allows you to have full control over the order of layers, and it properly registers the layers as submodules of the model so that they are recognized by methods like .to(device), .train(), .eval(), etc.
 
     def forward(
         self,
