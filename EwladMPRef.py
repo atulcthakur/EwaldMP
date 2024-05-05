@@ -135,14 +135,15 @@ class EwaldBlock(torch.nn.Module):
         dot: torch.Tensor = None,
         sinc_damping: torch.Tensor = None,
     ):
-        hres = self.pre_residual(h)
-        # Compute dot products and damping values if not already done so by an Ewald block
+        hres = self.pre_residual(h) # Pre-residual layer application (hres = self.pre_residual(h)): The pre-residual layer is applied to the atomic embeddings h, resulting in hres.
+        # Compute dot products and damping values if not already done so by an Ewald block 
         # in a previous interaction block
-        if dot == None:
-            b = batch_seg.view(-1, 1, 1).expand(-1, k.shape[-2], k.shape[-1])
-            dot = torch.sum(torch.gather(k, 0, b) * x.unsqueeze(-2), dim=-1)
-        if sinc_damping == None:
-            if self.use_pbc == False:
+        if dot == None:  # Calculate the dot product only if it is not previously computed. Computed only once in the first call. 
+            b = batch_seg.view(-1, 1, 1).expand(-1, k.shape[-2], k.shape[-1]) # The batch segmentation is expanded and reshaped to match the shape of k-vectors. 
+            dot = torch.sum(torch.gather(k, 0, b) * x.unsqueeze(-2), dim=-1) # The batch_seg is used to gather the relevant elements of k, which are then multiplied by cooordinates x. The dot product is computed with torch.sum. This whole thing basically evaluates 
+            # the dot product between positions x and k-vectors k. 
+        if sinc_damping == None: # Sinc damping as mentioned in the appendix of the EwaldMP paper. Only becomes relevant for aperiodic cases. Used for damping the contributions due of high wavevector components in the Fourier space.   
+            if self.use_pbc == False: # # If pbc = False
                 sinc_damping = (
                     torch.sinc(0.5 * self.delta_k * x[:, 0].unsqueeze(-1))
                     * torch.sinc(0.5 * self.delta_k * x[:, 1].unsqueeze(-1))
@@ -150,57 +151,58 @@ class EwaldBlock(torch.nn.Module):
                 )
                 sinc_damping = sinc_damping.expand(-1, k.shape[-2])
             else:
-                sinc_damping = 1
+                sinc_damping = 1 # Else it is 1. 
 
         # Compute Fourier space filter from weights
-        if self.use_pbc:
-            self.kfilter = (
-                torch.matmul(self.up.linear.weight, self.down.linear.weight)
-                .T.unsqueeze(0)
-                .expand(num_batch, -1, -1)
+        if self.use_pbc: # If PBC being used. 
+            self.kfilter = (  
+                torch.matmul(self.up.linear.weight, self.down.linear.weight)  # The Fourier space filter is computed via a matrix multiplication of the weights from the upprojection and downprojection layer. 
+                .T.unsqueeze(0) 
+                .expand(num_batch, -1, -1) # The result is transposed, unsqueezed to add an extra dimension at index (0), and expanded to match the number of batches. 
             )
-        else:
-            self.k_rbf_values = self.k_rbf_values.to(x.device)
+        else: # This is if PBC = False 
+            self.k_rbf_values = self.k_rbf_values.to(x.device) # Move the pre-evaluated values of radial basis functions on the same (CPU or GPU device)
             self.kfilter = (
                 self.up(self.down(self.k_rbf_values))
                 .unsqueeze(0)
                 .expand(num_batch, -1, -1)
-            )
+            ) # compute k-space filter. 
 
         # Compute real and imaginary parts of structure factor
         sf_real = hres.new_zeros(
-            num_batch, dot.shape[-1], hres.shape[-1]
+            num_batch, dot.shape[-1], hres.shape[-1]  # This initializes the zero tensors with the same dtype and device as the hres (the atomic embeddings after the pre-residual layer). 
+        ).index_add_(  # The index.adds the cosine part at the indices specified by batch_seg. The operation happens in-place. 
+            0,
+            batch_seg,
+            hres.unsqueeze(-2).expand(-1, dot.shape[-1], -1)
+            * (sinc_damping * torch.cos(dot))     # Computing cosine part of the structure factor (Real part)
+            .unsqueeze(-1)
+            .expand(-1, -1, hres.shape[-1]), # Reshaped and expanded to match the shape of hres. 
+        )  
+        sf_imag = hres.new_zeros(   # Same as in the above step
+            num_batch, dot.shape[-1], hres.shape[-1] 
         ).index_add_(
             0,
             batch_seg,
             hres.unsqueeze(-2).expand(-1, dot.shape[-1], -1)
-            * (sinc_damping * torch.cos(dot))
+            * (sinc_damping * torch.sin(dot))  # Computing the imaginary Sine part of the structure factor. 
             .unsqueeze(-1)
-            .expand(-1, -1, hres.shape[-1]),
-        )
-        sf_imag = hres.new_zeros(
-            num_batch, dot.shape[-1], hres.shape[-1]
-        ).index_add_(
-            0,
-            batch_seg,
-            hres.unsqueeze(-2).expand(-1, dot.shape[-1], -1)
-            * (sinc_damping * torch.sin(dot))
-            .unsqueeze(-1)
-            .expand(-1, -1, hres.shape[-1]),
+            .expand(-1, -1, hres.shape[-1]), # Reshaped and expanded to match the shape of hres. 
         )
 
         # Apply Fourier space filter; scatter back to position space
         h_update = 0.01 * torch.sum(
-            torch.index_select(sf_real * self.kfilter, 0, batch_seg)
-            * (sinc_damping * torch.cos(dot))
+            torch.index_select(sf_real * self.kfilter, 0, batch_seg) # The Fourier space filter is applied to the real part of the Sk (Structure Factor). 
+            # The index_select selects elements from the filtered Sk along the first dimension using the indices specified in batch_seg. 
+            * (sinc_damping * torch.cos(dot)) # The selected elements are then multiplied by the product of sinc_damping and cosine of the the dot (k.x)  
             .unsqueeze(-1)
-            .expand(-1, -1, hres.shape[-1])
-            + torch.index_select(sf_imag * self.kfilter, 0, batch_seg)
+            .expand(-1, -1, hres.shape[-1]) # Reshaped to match hres
+            + torch.index_select(sf_imag * self.kfilter, 0, batch_seg) # The Fourier space filter is applied to the imag. part of the Sk. Rest is same as above. 
             * (sinc_damping * torch.sin(dot))
             .unsqueeze(-1)
             .expand(-1, -1, hres.shape[-1]),
             dim=1,
-        )
+        ) # The torch.sum operation effectively scatters the filtered Sk back to position space. The results are scaled by 0.01 (why?) ? 
 
         if self.ewald_scale_sum is not None:
             h_update = self.ewald_scale_sum(h_update, ref=h)
